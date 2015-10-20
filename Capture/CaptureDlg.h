@@ -29,15 +29,19 @@ protected:
 
 private:
 	HMODULE m_hModule;
+public:
 	CString m_sDialogTitle;
 	CButton m_BeginCapture;
 	CButton m_HideSelf;
 	int m_iCountDown;
 	CStatic mctrl_CountDown;
-	CComboBox mctrl_SecondsToDelay;
-
+	HANDLE m_hEvent;
 private:
+	CComboBox mctrl_SecondsToDelay;
+public:
 	char * GetDesktopCaptureFilePath();
 public:
 	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
+protected:
+	afx_msg LRESULT OnStaticCountDown(WPARAM wParam, LPARAM lParam);
 };

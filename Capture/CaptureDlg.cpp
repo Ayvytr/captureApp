@@ -8,11 +8,16 @@ FnStartScreenCapture gl_StartScreenCapture = NULL;
 typedef int(*FnInitScreenCapture)(unsigned long trackerColor, unsigned long editBorderColor, int nTransparent, int flag);
 FnInitScreenCapture gl_InitCapture = NULL;
 
+#define WM_COUNTDOWN (WM_USER + 124)
+
+UINT OnCountDownThread(LPVOID lParam);
+
 CCaptureDlg::CCaptureDlg(CWnd* pParent /*=NULL*/)
 	: CDialog(CCaptureDlg::IDD, pParent)
 	, m_iCountDown(0)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
+	m_hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 }
 
 void CCaptureDlg::DoDataExchange(CDataExchange* pDX)
@@ -31,6 +36,7 @@ BEGIN_MESSAGE_MAP(CCaptureDlg, CDialog)
 	ON_MESSAGE(WM_USER + 1111, OnCaptureFinish)
 	ON_BN_CLICKED(IDOK, &CCaptureDlg::OnBnClickedOk)
 	ON_WM_CTLCOLOR()
+	ON_MESSAGE(WM_COUNTDOWN, &CCaptureDlg::OnStaticCountDown)
 END_MESSAGE_MAP()
 
 BOOL CCaptureDlg::OnInitDialog()
@@ -125,33 +131,12 @@ void CCaptureDlg::OnBnClickedOk()
 	if ((nSel = mctrl_SecondsToDelay.GetCurSel()) > 0)
 	{
 		m_iCountDown = nSel;
-		
-		while (m_iCountDown)
-		{
-			m_iCountDown--;
-			mctrl_CountDown.ShowWindow(SW_SHOW);
-			UpdateData(FALSE);
-			Sleep(1000);
-		}
-		mctrl_CountDown.ShowWindow(SW_HIDE);
+
+		UpdateData(FALSE);
+		ResetEvent(m_hEvent);
+		EnableWindow(FALSE);
+		HANDLE hThread = AfxBeginThread(OnCountDownThread, (LPVOID)this);
 	}
-
-	if (m_HideSelf.GetCheck())
-	{
-		ShowWindow(SW_HIDE);
-		//Sleep for enough time to hide this window
-		Sleep(200);
-	}
-
-	char * cstrDefaultCaptureSavePath = GetDesktopCaptureFilePath();
-
-	m_sDialogTitle.LoadString(STR_BEGINCAPTURE);
-	SetWindowText(m_sDialogTitle);
-
-	//通过回调函数来通知截图完成事件
-	gl_hWnd = m_hWnd;
-	gl_StartScreenCapture("niuniu", cstrDefaultCaptureSavePath, CaptureNotice, 0, 0);
-	delete[] cstrDefaultCaptureSavePath;
 }
 
 
@@ -257,4 +242,49 @@ HBRUSH CCaptureDlg::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 	}
 
 	return hbr;
+}
+
+
+
+afx_msg LRESULT CCaptureDlg::OnStaticCountDown(WPARAM wParam, LPARAM lParam)
+{
+	UpdateData(FALSE);
+
+	return 0;
+}
+
+//This thread is for count down and get screenshot 
+UINT OnCountDownThread(LPVOID lParam)
+{
+	CCaptureDlg *pDlg = (CCaptureDlg *)lParam;
+
+	while (pDlg->m_iCountDown)
+	{
+		pDlg->m_iCountDown--;
+		pDlg->mctrl_CountDown.ShowWindow(SW_SHOW);
+		pDlg->SendMessage(WM_COUNTDOWN);
+		Sleep(1000);
+	}
+	pDlg->mctrl_CountDown.ShowWindow(SW_HIDE);
+	SetEvent(pDlg->m_hEvent);
+
+	if (pDlg->m_HideSelf.GetCheck())
+	{
+		pDlg->ShowWindow(SW_HIDE);
+		//Sleep for enough time to hide this window
+		Sleep(200);
+	}
+
+	char * cstrDefaultCaptureSavePath = pDlg->GetDesktopCaptureFilePath();
+
+	pDlg->m_sDialogTitle.LoadString(STR_BEGINCAPTURE);
+	pDlg->SetWindowText(pDlg->m_sDialogTitle);
+
+	//通过回调函数来通知截图完成事件
+	gl_hWnd = pDlg->m_hWnd;
+	gl_StartScreenCapture("niuniu", cstrDefaultCaptureSavePath, CaptureNotice, 0, 0);
+	delete[] cstrDefaultCaptureSavePath;
+
+	pDlg->EnableWindow();
+	return 0;
 }
